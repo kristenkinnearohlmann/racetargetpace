@@ -16,6 +16,12 @@ class RaceTargetPaceView extends WatchUi.DataField {
     var _currentPace as String = "--";
     var _averagePace as String = "--";
 
+    // Lap tracking (lap start is captured when the watch fires a lap, manual or auto)
+    var _lapStartDistance as Float = 0.0;
+    var _lapStartTime as Number = 0;
+    var _lastDistance as Float = 0.0;
+    var _lastTimerTime as Number = 0;
+
     // Set the label of the data field here.
     function initialize() {
         DataField.initialize();
@@ -100,16 +106,20 @@ class RaceTargetPaceView extends WatchUi.DataField {
             _targetPace = calculateAveragePace();
         }
 
-        // Get current pace from activity info
-        // currentSpeed is in meters per second, convert to pace (min/mile)
-        var currentSpeed = info.currentSpeed;
+        // Lap pace: time elapsed in the current lap divided by distance covered in it
+        var timerTime = info.timerTime;
+        _lastDistance = distance.toFloat();
+        _lastTimerTime = timerTime != null ? timerTime : 0;
 
-        if (currentSpeed != null && currentSpeed > 0) {
-            // Convert m/s to min/mile
-            var paceSeconds = 1609.34 / currentSpeed;
-            var paceMinutes = Math.floor(paceSeconds / 60).toNumber();
-            var remainderSeconds = paceSeconds - (paceMinutes * 60);
-            var paceRemainingSeconds = remainderSeconds.toNumber();
+        var lapDistance = _lastDistance - _lapStartDistance;
+        var lapSeconds = (_lastTimerTime - _lapStartTime) / 1000.0;
+
+        // Wait for a little distance in the new lap so the pace isn't wildly off
+        if (lapDistance > 10 && lapSeconds > 0) {
+            // Convert to min/mile
+            var paceSeconds = (lapSeconds / lapDistance * 1609.34).toNumber();
+            var paceMinutes = paceSeconds / 60;
+            var paceRemainingSeconds = paceSeconds % 60;
 
             _currentPace = paceMinutes.format("%d") + ":" + paceRemainingSeconds.format("%02d");
         } else {
@@ -119,6 +129,21 @@ class RaceTargetPaceView extends WatchUi.DataField {
         System.println("Mile: " + _currentMile + "/" + _maxMiles + ", Target: " + _targetPace + ", Current: " + _currentPace);
 
         return;
+    }
+
+    // Called when a lap is triggered (lap button or auto lap)
+    function onTimerLap() as Void {
+        _lapStartDistance = _lastDistance;
+        _lapStartTime = _lastTimerTime;
+    }
+
+    // Called when the activity is reset; start lap tracking over
+    function onTimerReset() as Void {
+        _lapStartDistance = 0.0;
+        _lapStartTime = 0;
+        _lastDistance = 0.0;
+        _lastTimerTime = 0;
+        _currentPace = "--";
     }
 
     function calculateAveragePace() as String {
@@ -174,7 +199,7 @@ class RaceTargetPaceView extends WatchUi.DataField {
         // Set background color
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
         dc.clear();
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_WHITE);
+        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
 
         // Draw mile indicator at top
         var mileLabel = "Mile " + _currentMile;
@@ -201,7 +226,7 @@ class RaceTargetPaceView extends WatchUi.DataField {
         // Draw current pace below
         dc.drawText(width / 2, height / 2 + 30, Graphics.FONT_SYSTEM_NUMBER_HOT, _currentPace, Graphics.TEXT_JUSTIFY_CENTER);
 
-        dc.drawText(width / 2, height / 2 + 85, Graphics.FONT_XTINY, "Current", Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(width / 2, height / 2 + 85, Graphics.FONT_XTINY, "Lap", Graphics.TEXT_JUSTIFY_CENTER);
     }
 
 }
